@@ -32,6 +32,4 @@ export interface GameState {
   isJumping: boolean;
   obstacles: Obstacle[];
   gameSpeed: number;
-  aiMessage: string;
-  showAiMessage: boolean;
 }

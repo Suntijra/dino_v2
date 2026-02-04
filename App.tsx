@@ -20,10 +20,7 @@ import {
   SPAWN_INTERVAL_MIN,
   SPAWN_INTERVAL_MAX
 } from './constants';
-import { getGameCommentary, getMidGameCommentary } from './services/geminiService';
-
-// AI Calling Constraints
-const AI_COOLDOWN_MS = 25000; 
+ 
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>({
@@ -36,8 +33,7 @@ const App: React.FC = () => {
     isJumping: false,
     obstacles: [],
     gameSpeed: INITIAL_SPEED,
-    aiMessage: 'แตะเพื่อเริ่ม...',
-    showAiMessage: true,
+
   });
 
   const [particles, setParticles] = useState<Particle[]>([]);
@@ -49,15 +45,14 @@ const App: React.FC = () => {
   const nextSpawnTimeRef = useRef<number>(0);
   const stateRef = useRef(gameState);
   
+  /* Removed AI refs */
   const audioContextRef = useRef<AudioContext | null>(null);
   
   const isGameOverProcessing = useRef(false);
-  const isRequestingAiRef = useRef(false); 
-  const lastAiCallTimeRef = useRef(0); 
   
   const lastScoreMilestoneRef = useRef(0);
   const lastCoinMilestoneRef = useRef(0);
-  const aiMessageTimeoutRef = useRef<number | null>(null);
+
 
   useEffect(() => {
     stateRef.current = gameState;
@@ -116,34 +111,12 @@ const App: React.FC = () => {
     osc.stop(ctx.currentTime + 0.3);
   };
 
-  const showAiBubble = (message: string, duration = 4000) => {
-    if (aiMessageTimeoutRef.current) window.clearTimeout(aiMessageTimeoutRef.current);
-    setGameState(prev => ({ ...prev, aiMessage: message, showAiMessage: true }));
-    aiMessageTimeoutRef.current = window.setTimeout(() => {
-      setGameState(prev => ({ ...prev, showAiMessage: false }));
-    }, duration);
-  };
-
-  const createParticles = (x: number, y: number, color: string, count: number) => {
-    const newParticles: Particle[] = [];
-    for (let i = 0; i < count; i++) {
-      newParticles.push({
-        id: Math.random(),
-        x,
-        y,
-        vx: (Math.random() - 0.5) * 12,
-        vy: (Math.random() - 0.5) * 12,
-        life: 1,
-        color,
-        size: Math.random() * 5 + 3
-      });
     }
     setParticles(prev => [...prev, ...newParticles]);
   };
 
   const startGame = useCallback(() => {
     isGameOverProcessing.current = false;
-    isRequestingAiRef.current = false;
     lastScoreMilestoneRef.current = 0;
     lastCoinMilestoneRef.current = 0;
     
@@ -158,41 +131,13 @@ const App: React.FC = () => {
       obstacles: [],
       gameSpeed: INITIAL_SPEED,
     }));
-    showAiBubble('Neon Runner Online', 2500);
+    // AI Bubble removed
     setParticles([]);
     lastTimeRef.current = performance.now();
     nextSpawnTimeRef.current = performance.now() + 1000;
   }, []);
 
-  const triggerMidGameAI = async (score: number, coins: number, eventType: 'DISTANCE' | 'COINS') => {
-    const now = Date.now();
-    if (isRequestingAiRef.current || (now - lastAiCallTimeRef.current < AI_COOLDOWN_MS) || stateRef.current.status !== 'PLAYING') {
-      return;
-    }
 
-    isRequestingAiRef.current = true;
-    lastAiCallTimeRef.current = now;
-
-    try {
-      const context = {
-          score,
-          coins,
-          highScore: stateRef.current.highScore,
-          gameSpeed: stateRef.current.gameSpeed,
-          status: 'PLAYING' as const,
-          event: eventType
-      };
-
-      const text = await getMidGameCommentary(context);
-      if (stateRef.current.status === 'PLAYING') {
-        showAiBubble(text);
-      }
-    } catch (err) {
-      console.warn("AI skipped", err);
-    } finally {
-      isRequestingAiRef.current = false;
-    }
-  };
 
   const gameOver = async () => {
     if (isGameOverProcessing.current) return;
@@ -212,26 +157,11 @@ const App: React.FC = () => {
       status: 'GAME_OVER',
       highScore: newHighScore,
     }));
-    showAiBubble('System Offline...', 2000);
+    // AI Message removed
 
     createParticles(120, GROUND_Y + stateRef.current.dinoY - 40, '#ff0055', 30);
     
-    try {
-      const context = {
-        score: finalScore,
-        coins: stateRef.current.coins,
-        highScore: stateRef.current.highScore,
-        gameSpeed: stateRef.current.gameSpeed,
-        status: 'LOSS' as const
-      };
-
-      const commentaryText = await getGameCommentary(context);
-      if (stateRef.current.status === 'GAME_OVER') {
-        showAiBubble(commentaryText, 6000);
-      }
-    } catch (err) {
-      console.error("GameOver AI error", err);
-    }
+    // AI commentary removed
   };
 
   const handleJump = useCallback((e?: any) => {
@@ -477,14 +407,7 @@ const App: React.FC = () => {
         </div>
 
         {/* AI Message */}
-        {gameState.showAiMessage && (
-          <div className="absolute top-[18%] left-1/2 -translate-x-1/2 w-[85%] sm:w-auto sm:max-w-[50%] pointer-events-none z-20">
-             <div className="bg-indigo-950/80 backdrop-blur-2xl border border-indigo-400/40 p-2 sm:p-4 rounded-2xl shadow-2xl flex gap-3 items-center animate-in fade-in zoom-in-90 duration-300">
-                <div className="w-8 h-8 bg-indigo-500/30 rounded-lg flex-shrink-0 flex items-center justify-center text-sm shadow-inner border border-white/10">🤖</div>
-                <p className="text-[10px] sm:text-[14px] font-bold text-white italic">{gameState.aiMessage}</p>
-             </div>
-          </div>
-        )}
+        {/* AI Message removed */}
 
         {gameState.status === 'START' && (
           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center text-center p-6 z-30">
