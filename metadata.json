@@ -1,0 +1,5 @@
+{
+  "name": "Gemini Dino Run",
+  "description": "A high-fidelity Chrome Dino clone with AI-powered witty commentary and dynamic difficulty adjustments using Gemini 3 Flash.",
+  "requestFramePermissions": []
+}
