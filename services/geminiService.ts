@@ -28,7 +28,7 @@ export async function getGameCommentary(ctx: GameContext): Promise<string> {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-lite',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         systemInstruction: "คุณคือ Dino-Tech AI ผู้ช่วยสุดกวน หน้าที่คือคอมเมนต์สั้นๆ กระชับ และกวนประสาท",
