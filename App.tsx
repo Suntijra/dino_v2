@@ -15,6 +15,7 @@ import {
   MAX_SPEED, 
   DINO_WIDTH, 
   DINO_HEIGHT, 
+  DINO_Y_OFFSET,
   CANVAS_WIDTH, 
   CANVAS_HEIGHT,
   SPAWN_INTERVAL_MIN,
@@ -58,6 +59,10 @@ const App: React.FC = () => {
   const lastScoreMilestoneRef = useRef(0);
   const lastCoinMilestoneRef = useRef(0);
   const aiMessageTimeoutRef = useRef<number | null>(null);
+
+  // Seal character images
+  const sealRunImgRef = useRef<HTMLImageElement | null>(null);
+  const sealJumpImgRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
     stateRef.current = gameState;
@@ -183,9 +188,9 @@ const App: React.FC = () => {
           event: eventType
       };
 
-      const text = await getMidGameCommentary(context);
+      // const text = await getMidGameCommentary(context);
       if (stateRef.current.status === 'PLAYING') {
-        showAiBubble(text);
+        // showAiBubble(text);
       }
     } catch (err) {
       console.warn("AI skipped", err);
@@ -225,9 +230,9 @@ const App: React.FC = () => {
         status: 'LOSS' as const
       };
 
-      const commentaryText = await getGameCommentary(context);
+      // const commentaryText = await getGameCommentary(context);
       if (stateRef.current.status === 'GAME_OVER') {
-        showAiBubble(commentaryText, 6000);
+        // showAiBubble(commentaryText, 6000);
       }
     } catch (err) {
       console.error("GameOver AI error", err);
@@ -272,68 +277,72 @@ const App: React.FC = () => {
           triggerMidGameAI(currentScore, currentCoins, 'COINS');
       }
 
-      setGameState(prev => {
-        let newY = prev.dinoY + prev.velocity;
-        let newVelocity = prev.velocity + GRAVITY;
-        let newIsJumping = prev.isJumping;
+      // Calculate new state values
+      const prev = stateRef.current;
+      let newY = prev.dinoY + prev.velocity;
+      let newVelocity = prev.velocity + GRAVITY;
+      let newIsJumping = prev.isJumping;
 
-        if (newY >= 0) {
-          newY = 0;
-          newVelocity = 0;
-          newIsJumping = false;
-        }
+      if (newY >= 0) {
+        newY = 0;
+        newVelocity = 0;
+        newIsJumping = false;
+      }
 
-        let newObstacles = [...prev.obstacles];
-        if (time > nextSpawnTimeRef.current) {
-          const rand = Math.random();
-          let type: 'CACTUS' | 'BIRD' | 'COIN' = rand > 0.9 ? 'COIN' : rand > 0.7 ? 'BIRD' : 'CACTUS';
-          let height = type === 'CACTUS' ? 50 + Math.random() * 30 : type === 'BIRD' ? 45 : 35;
-          let width = type === 'CACTUS' ? 40 : type === 'BIRD' ? 60 : 35;
-          let y = type === 'BIRD' ? -80 - Math.random() * 100 : type === 'COIN' ? -120 - Math.random() * 100 : 0;
-          newObstacles.push({ id: Date.now(), x: CANVAS_WIDTH, width, height, type, y, collected: false });
-          nextSpawnTimeRef.current = time + (SPAWN_INTERVAL_MIN + Math.random() * 1200) / (prev.gameSpeed / INITIAL_SPEED);
-        }
+      let newObstacles = [...prev.obstacles];
+      if (time > nextSpawnTimeRef.current) {
+        const rand = Math.random();
+        let type: 'CACTUS' | 'BIRD' | 'COIN' = rand > 0.9 ? 'COIN' : rand > 0.7 ? 'BIRD' : 'CACTUS';
+        let height = type === 'CACTUS' ? 50 + Math.random() * 30 : type === 'BIRD' ? 45 : 35;
+        let width = type === 'CACTUS' ? 40 : type === 'BIRD' ? 60 : 35;
+        let y = type === 'BIRD' ? -80 - Math.random() * 100 : type === 'COIN' ? -120 - Math.random() * 100 : 0;
+        const newObs = { id: Date.now(), x: CANVAS_WIDTH, width, height, type, y, collected: false };
+        newObstacles.push(newObs);
+        nextSpawnTimeRef.current = time + (SPAWN_INTERVAL_MIN + Math.random() * 1200) / (prev.gameSpeed / INITIAL_SPEED);
+      }
 
-        let coinsEarned = 0;
-        const remainingObstacles: Obstacle[] = [];
-        let collision = false;
+      let coinsEarned = 0;
+      const remainingObstacles: Obstacle[] = [];
+      let collision = false;
 
-        for (const obs of newObstacles) {
-          const nx = obs.x - prev.gameSpeed;
-          if (nx + obs.width < -100) continue;
-          
-          const padding = 15;
-          const dinoBox = {
-            l: 100 + padding, r: 100 + DINO_WIDTH - padding,
-            t: GROUND_Y + newY - DINO_HEIGHT + padding, b: GROUND_Y + newY - padding
-          };
-          const obsBox = {
-            l: nx + padding, r: nx + obs.width - padding,
-            t: GROUND_Y + obs.y - obs.height + padding, b: GROUND_Y + obs.y - padding
-          };
+      for (const obs of newObstacles) {
+        const nx = obs.x - prev.gameSpeed;
+        if (nx + obs.width < -100) continue;
+        
+        const padding = 10;  // Reduced padding for tighter hitbox matching seal body
+        const dinoBox = {
+          l: 100 + padding, r: 100 + DINO_WIDTH - padding,
+          t: GROUND_Y + newY - DINO_HEIGHT + padding, b: GROUND_Y + newY - padding
+        };
+        const obsBox = {
+          l: nx + padding, r: nx + obs.width - padding,
+          t: GROUND_Y + obs.y - obs.height + padding, b: GROUND_Y + obs.y - padding
+        };
 
-          const isColliding = dinoBox.l < obsBox.r && dinoBox.r > obsBox.l && dinoBox.t < obsBox.b && dinoBox.b > obsBox.t;
-          
-          if (isColliding) {
-            if (obs.type === 'COIN' && !obs.collected) {
-              obs.collected = true;
-              coinsEarned++;
-              playCoinSound();
-              createParticles(nx + 17, GROUND_Y + obs.y - 17, '#fbbf24', 15);
-              continue;
-            } else if (obs.type !== 'COIN') {
-              collision = true;
-            }
+        const isColliding = dinoBox.l < obsBox.r && dinoBox.r > obsBox.l && dinoBox.t < obsBox.b && dinoBox.b > obsBox.t;
+        
+        if (isColliding) {
+          if (obs.type === 'COIN' && !obs.collected) {
+            obs.collected = true;
+            coinsEarned++;
+            playCoinSound();
+            createParticles(nx + 17, GROUND_Y + obs.y - 17, '#fbbf24', 15);
+            continue;
+          } else if (obs.type !== 'COIN') {
+            collision = true;
           }
-          remainingObstacles.push({ ...obs, x: nx });
         }
+        remainingObstacles.push({ ...obs, x: nx });
+      }
 
-        if (collision) {
-          gameOver();
-          return { ...prev, status: 'GAME_OVER' };
-        }
-
-        return {
+      if (collision) {
+        gameOver();
+        const newState = { ...prev, status: 'GAME_OVER' as GameStatus };
+        stateRef.current = newState;
+        setGameState(newState);
+      } else {
+        // Update state with new values
+        const newState = {
           ...prev,
           score: prev.score + (deltaTime * 0.02),
           coins: prev.coins + coinsEarned,
@@ -343,7 +352,10 @@ const App: React.FC = () => {
           obstacles: remainingObstacles,
           gameSpeed: Math.min(prev.gameSpeed + SPEED_INCREMENT, MAX_SPEED)
         };
-      });
+        // Update ref immediately so draw() uses the latest state
+        stateRef.current = newState;
+        setGameState(newState);
+      }
     }
 
     setParticles(prev => prev
@@ -387,39 +399,9 @@ const App: React.FC = () => {
     ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(CANVAS_WIDTH, GROUND_Y); ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Dino
-    const dy = GROUND_Y + stateRef.current.dinoY - DINO_HEIGHT;
-    const dx = 100;
-    ctx.shadowBlur = 20; ctx.shadowColor = '#06b6d4';
-    ctx.fillStyle = '#22d3ee';
-    
-    // Body Parts
-    ctx.fillRect(dx + 15, dy, 35, 45); // Main Body
-    ctx.fillRect(dx + 40, dy - 15, 25, 25); // Head
-    ctx.fillRect(dx, dy + 15, 15, 20); // Tail
-    ctx.fillStyle = '#fff'; ctx.fillRect(dx + 55, dy - 8, 5, 5); // Eye
-    
-    // Dino Legs Animation
-    ctx.fillStyle = '#22d3ee';
-    if (stateRef.current.status === 'PLAYING' && !stateRef.current.isJumping) {
-      // Calculate leg movement based on score (distance) for sync
-      const legToggle = Math.floor(stateRef.current.score * 0.7) % 2 === 0;
-      
-      // Leg 1 (Left)
-      ctx.fillRect(dx + 20, dy + 45 + (legToggle ? 0 : 8), 10, 14);
-      // Leg 2 (Right)
-      ctx.fillRect(dx + 38, dy + 45 + (legToggle ? 8 : 0), 10, 14);
-    } else if (stateRef.current.isJumping) {
-      // Jumping pose: legs tucked slightly
-      ctx.fillRect(dx + 20, dy + 45, 10, 10);
-      ctx.fillRect(dx + 38, dy + 45, 10, 10);
-    } else {
-      // Static pose for Start/Game Over
-      ctx.fillRect(dx + 20, dy + 45, 10, 14);
-      ctx.fillRect(dx + 38, dy + 45, 10, 14);
-    }
-    
-    ctx.shadowBlur = 0;
+    // Seal Character is now rendered as HTML img overlay (see JSX below)
+    // No canvas drawing needed for character
+
 
     // Obstacles
     stateRef.current.obstacles.forEach(obs => {
@@ -462,6 +444,21 @@ const App: React.FC = () => {
     >
       <div className="relative w-full max-w-[1400px] aspect-[2/1] bg-slate-900 shadow-[0_0_150px_rgba(0,0,0,1)] overflow-hidden sm:rounded-2xl border border-white/5">
         <canvas ref={canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} className="absolute inset-0 w-full h-full object-cover pointer-events-none"/>
+
+        {/* Seal Character - Animated GIF overlay */}
+        <img 
+          src={gameState.isJumping ? '/images/Seal Jump.gif' : '/images/Seal Run.gif'}
+          alt="Seal"
+          className="absolute pointer-events-none"
+          style={{
+            left: `${(100 / CANVAS_WIDTH) * 100}%`,
+            bottom: `${((CANVAS_HEIGHT - GROUND_Y - gameState.dinoY + DINO_Y_OFFSET) / CANVAS_HEIGHT) * 100}%`,
+            width: `${(DINO_WIDTH / CANVAS_WIDTH) * 100}%`,
+            height: `${(DINO_HEIGHT / CANVAS_HEIGHT) * 100}%`,
+            filter: 'drop-shadow(0 0 20px rgba(6, 182, 212, 0.6))',
+            transform: 'translateY(100%)'
+          }}
+        />
 
         {/* HUD */}
         <div className="absolute top-[4%] left-[4%] right-[4%] flex justify-between items-start pointer-events-none select-none z-10">
